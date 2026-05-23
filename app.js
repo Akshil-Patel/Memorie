@@ -101,6 +101,10 @@ const DB = {
 window.onload = async () => {
   setDate();
 
+  // Load user's Vault Settings
+  state.activeVaultMode = localStorage.getItem('memoire_vault_mode') || 'personal';
+  state.sharedFolderId = localStorage.getItem('memoire_shared_folder_id') || '';
+
   // Register Service Worker for PWA offline caching
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js')
@@ -380,10 +384,36 @@ async function initCamera() {
   vid.srcObject = state.stream;
   vid.style.display = 'block';
   vid.classList.toggle('mirrored', state.facingMode === 'user');
+  
+  // Apply current filter to camera preview
+  applyFilterToPreview();
+
   if (idle.querySelector('p')) {
     idle.querySelector('p').textContent = 'Camera ready';
   }
   idle.style.opacity = '0';
+}
+
+function setFilter(filterName) {
+  state.selectedFilter = filterName;
+  
+  // Update filter selector UI cards active state
+  document.querySelectorAll('.filter-card').forEach(card => {
+    card.classList.toggle('active', card.dataset.filter === filterName);
+  });
+  
+  applyFilterToPreview();
+}
+
+function applyFilterToPreview() {
+  const vid = document.getElementById('video-preview');
+  if (!vid) return;
+  
+  // Remove existing filter classes
+  vid.classList.remove('filter-retro', 'filter-noir', 'filter-vivid', 'filter-cyberpunk');
+  if (state.selectedFilter !== 'none') {
+    vid.classList.add(`filter-${state.selectedFilter}`);
+  }
 }
 
 async function flipCamera() {
@@ -496,6 +526,7 @@ async function finalizeClip() {
     timestamp: now,
     size: blob.size,
     ext,
+    filter: state.selectedFilter,
   };
 
   state.clips.push(clip);
@@ -545,9 +576,10 @@ function buildClipCard(clip, index) {
   card.dataset.id = clip.id;
   card.style.animationDelay = `${index * 40}ms`;
 
+  const filterClass = clip.filter && clip.filter !== 'none' ? `filter-${clip.filter}` : '';
   card.innerHTML = `
     <div class="clip-thumb">
-      <video src="${clip.url}" muted preload="metadata" playsinline></video>
+      <video src="${clip.url}" class="${filterClass}" muted preload="metadata" playsinline></video>
       <div class="clip-thumb-overlay">
         <div class="play-icon">
           <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
@@ -605,7 +637,7 @@ async function deleteClip(id) {
 function playClip(id) {
   const clip = state.clips.find(c => c.id === id);
   if (!clip) return;
-  openPlayback(clip.url, clip.name, `${formatDuration(clip.duration)} · ${formatSize(clip.size)}`);
+  openPlayback(clip.url, clip.name, `${formatDuration(clip.duration)} · ${formatSize(clip.size)}`, clip.filter);
 }
 
 function updateRecordStats() {
@@ -794,7 +826,8 @@ async function saveHighlight() {
 async function uploadToDrive(clip, currentNum = 1, totalClips = 1) {
   await ensureDriveFolder();
 
-  const filename = `${formatDateForFile(clip.timestamp)}_highlight_${currentNum}.${clip.ext}`;
+  const filterSuffix = clip.filter && clip.filter !== 'none' ? `_${clip.filter}` : '';
+  const filename = `${formatDateForFile(clip.timestamp)}_highlight_${currentNum}${filterSuffix}.${clip.ext}`;
   setUploadProgress(10, `[${currentNum}/${totalClips}] Preparing ${clip.name}…`);
 
   const metadata = {
@@ -873,6 +906,12 @@ function hideUploadModal() {
 async function ensureDriveFolder() {
   if (state.highlightsFolderId) return;
 
+  // Use Shared Folder directly if in Shared Vault Mode
+  if (state.activeVaultMode === 'shared' && state.sharedFolderId) {
+    state.highlightsFolderId = state.sharedFolderId;
+    return;
+  }
+
   try {
     // Find or create root folder
     if (!state.folderId) {
@@ -929,6 +968,7 @@ async function loadMemories() {
       size: parseInt(f.size || 0),
       thumbnailLink: f.thumbnailLink,
       hasThumbnail: f.hasThumbnail,
+      filter: parseFilterFromFilename(f.name),
     }));
     renderVault();
   } catch (e) {
@@ -952,15 +992,21 @@ async function loadDemoMemories() {
       const dates = [5, 4, 3, 2, 1, 0].map(d => {
         const dt = new Date(); dt.setDate(dt.getDate() - d); return dt;
       });
-      state.memories = dates.map((d, i) => ({
-        id: `demo_${i}`,
-        name: `highlight_${formatDateForFile(d)}.webm`,
-        date: d,
-        driveId: null,
-        url: null,
-        size: Math.floor(Math.random() * 20 + 5) * 1024 * 1024,
-        duration: Math.floor(Math.random() * 45 + 15),
-      }));
+      const filters = ['retro', 'noir', 'vivid', 'cyberpunk', 'none', 'none'];
+      state.memories = dates.map((d, i) => {
+        const filter = filters[i % filters.length];
+        const filterSuffix = filter !== 'none' ? `_${filter}` : '';
+        return {
+          id: `demo_${i}`,
+          name: `highlight_${formatDateForFile(d)}${filterSuffix}.webm`,
+          date: d,
+          driveId: null,
+          url: null,
+          size: Math.floor(Math.random() * 20 + 5) * 1024 * 1024,
+          duration: Math.floor(Math.random() * 45 + 15),
+          filter: filter
+        };
+      });
       for (const mem of state.memories) {
         await DB.put('memories', mem);
       }
@@ -975,6 +1021,12 @@ async function loadDemoMemories() {
 function renderVault() {
   const grid = document.getElementById('vault-grid');
   const empty = document.getElementById('vault-empty');
+
+  // Calculate and display Daily highlight streaks
+  calculateStreak();
+
+  // Render Throwbacks & Flashbacks
+  renderFlashback();
 
   document.getElementById('vault-count').textContent =
     state.memories.length === 0 ? '0 memories' :
@@ -1003,12 +1055,13 @@ function buildVaultCard(mem, index) {
   const dateLabel = mem.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   const durationLabel = mem.duration ? formatDuration(mem.duration) : '';
 
+  const filterClass = mem.filter && mem.filter !== 'none' ? `filter-${mem.filter}` : '';
   let thumbContent = `<svg width="28" height="28" viewBox="0 0 28 28" fill="none" style="opacity:0.25"><path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8z" stroke="currentColor" stroke-width="1.5"/><path d="M20 11l6-4v14l-6-4v-6z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
 
   if (mem.url) {
-    thumbContent = `<video src="${mem.url}" muted preload="metadata" playsinline></video>`;
+    thumbContent = `<video src="${mem.url}" class="${filterClass}" muted preload="metadata" playsinline></video>`;
   } else if (mem.thumbnailLink) {
-    thumbContent = `<img src="${mem.thumbnailLink}" alt="${dateLabel}" style="width:100%;height:100%;object-fit:cover;">`;
+    thumbContent = `<img src="${mem.thumbnailLink}" class="${filterClass}" alt="${dateLabel}" style="width:100%;height:100%;object-fit:cover;">`;
   }
 
   card.innerHTML = `
@@ -1025,7 +1078,7 @@ function buildVaultCard(mem, index) {
 
   card.addEventListener('click', () => {
     if (mem.url) {
-      openPlayback(mem.url, dateLabel, formatSize(mem.size));
+      openPlayback(mem.url, dateLabel, formatSize(mem.size), mem.filter);
     } else if (mem.driveId && state.accessToken !== 'demo') {
       fetchAndPlayDrive(mem);
     } else {
@@ -1058,15 +1111,23 @@ async function fetchAndPlayDrive(mem) {
     }
     const blob = await res.blob();
     mem.url = URL.createObjectURL(blob);
-    openPlayback(mem.url, mem.date.toLocaleDateString(), formatSize(mem.size));
+    openPlayback(mem.url, mem.date.toLocaleDateString(), formatSize(mem.size), mem.filter);
   } catch (e) {
     toast('Failed to load video — ' + e.message);
   }
 }
 
 // ── PLAYBACK ───────────────────────────
-function openPlayback(url, title, meta) {
-  document.getElementById('playback-video').src = url;
+function openPlayback(url, title, meta, filter = 'none') {
+  const vid = document.getElementById('playback-video');
+  vid.src = url;
+  
+  // Clear any existing filter classes
+  vid.className = '';
+  if (filter && filter !== 'none') {
+    vid.classList.add(`filter-${filter}`);
+  }
+  
   document.getElementById('playback-title').textContent = title;
   document.getElementById('playback-meta').textContent = meta;
   document.getElementById('modal-playback').classList.add('open');
@@ -1076,6 +1137,7 @@ function closePlayback() {
   const vid = document.getElementById('playback-video');
   vid.pause();
   vid.src = '';
+  vid.className = ''; // Clear filter classes
   document.getElementById('modal-playback').classList.remove('open');
 }
 
@@ -1185,3 +1247,285 @@ window.addEventListener('click', () => {
   const dropdown = document.getElementById('user-dropdown');
   if (dropdown) dropdown.classList.remove('open');
 });
+
+// ── FILENAME FILTER PARSER ──────────────
+function parseFilterFromFilename(filename) {
+  if (!filename) return 'none';
+  const nameWithoutExt = filename.substring(0, filename.lastIndexOf('.'));
+  const parts = nameWithoutExt.split('_');
+  if (parts.length > 0) {
+    const lastPart = parts[parts.length - 1];
+    const validFilters = ['retro', 'noir', 'vivid', 'cyberpunk'];
+    if (validFilters.includes(lastPart)) return lastPart;
+  }
+  return 'none';
+}
+
+// ── STREAK SYSTEM LOGIC ─────────────────
+function calculateStreak() {
+  if (state.memories.length === 0) {
+    state.streakCount = 0;
+    updateStreakUI();
+    return;
+  }
+
+  // Get unique sorted dates in local timezone (YYYY-MM-DD)
+  const uniqueDates = Array.from(new Set(state.memories.map(m => {
+    const d = new Date(m.date);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }))).sort((a, b) => b.localeCompare(a)); // Descending sorted dates (newest first)
+
+  if (uniqueDates.length === 0) {
+    state.streakCount = 0;
+    updateStreakUI();
+    return;
+  }
+
+  const today = new Date();
+  const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+  
+  // Calculate yesterday's date string
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.getFullYear() + '-' + String(yesterday.getMonth() + 1).padStart(2, '0') + '-' + String(yesterday.getDate()).padStart(2, '0');
+
+  const newestDate = uniqueDates[0];
+  
+  // If the newest highlight is older than yesterday, the streak is broken (0)
+  if (newestDate !== todayStr && newestDate !== yesterdayStr) {
+    state.streakCount = 0;
+    updateStreakUI();
+    return;
+  }
+
+  // Count consecutive days
+  let streak = 0;
+  let currentDate = new Date(newestDate);
+
+  for (let i = 0; i < uniqueDates.length; i++) {
+    const dateStr = uniqueDates[i];
+    const compareStr = currentDate.getFullYear() + '-' + String(currentDate.getMonth() + 1).padStart(2, '0') + '-' + String(currentDate.getDate()).padStart(2, '0');
+
+    if (dateStr === compareStr) {
+      streak++;
+      // Move to yesterday for the next comparison
+      currentDate.setDate(currentDate.getDate() - 1);
+    } else {
+      // Gap in consecutive days, streak calculation stops
+      break;
+    }
+  }
+
+  state.streakCount = streak;
+  updateStreakUI();
+}
+
+function updateStreakUI() {
+  const count = state.streakCount;
+  
+  // Topbar Streak
+  const topStreak = document.getElementById('topbar-streak');
+  const streakCountEl = document.getElementById('streak-count');
+  if (count > 0) {
+    if (streakCountEl) streakCountEl.textContent = count;
+    if (topStreak) topStreak.style.display = 'inline-flex';
+  } else {
+    if (topStreak) topStreak.style.display = 'none';
+  }
+
+  // Sidebar Streak
+  const sidebarStreak = document.getElementById('sidebar-streak-card');
+  const sidebarCountEl = document.getElementById('sidebar-streak-count');
+  if (count > 0) {
+    if (sidebarCountEl) sidebarCountEl.textContent = `${count} day${count !== 1 ? 's' : ''}`;
+    if (sidebarStreak) sidebarStreak.style.display = 'flex';
+  } else {
+    if (sidebarStreak) sidebarStreak.style.display = 'none';
+  }
+}
+
+// ── VAULT SETTINGS PANEL ─────────────────
+function openSettings() {
+  const mode = state.activeVaultMode;
+  const folderId = state.sharedFolderId;
+
+  const folderInput = document.getElementById('input-shared-folder-id');
+  if (folderInput) folderInput.value = folderId;
+  
+  setVaultMode(mode);
+
+  const modal = document.getElementById('modal-settings');
+  if (modal) modal.classList.add('open');
+}
+
+function closeSettings() {
+  const modal = document.getElementById('modal-settings');
+  if (modal) modal.classList.remove('open');
+}
+
+function setVaultMode(mode) {
+  state.activeVaultMode = mode;
+  
+  // Toggle active classes
+  const btnPersonal = document.getElementById('btn-vault-personal');
+  const btnShared = document.getElementById('btn-vault-shared');
+  const sharedInputGroup = document.getElementById('shared-folder-input-group');
+  
+  if (mode === 'personal') {
+    if (btnPersonal) {
+      btnPersonal.classList.add('active');
+      btnPersonal.style.background = 'var(--surface3)';
+      btnPersonal.style.color = 'var(--text)';
+    }
+    if (btnShared) {
+      btnShared.classList.remove('active');
+      btnShared.style.background = 'transparent';
+      btnShared.style.color = 'var(--text-muted)';
+    }
+    if (sharedInputGroup) sharedInputGroup.style.display = 'none';
+  } else {
+    if (btnShared) {
+      btnShared.classList.add('active');
+      btnShared.style.background = 'var(--surface3)';
+      btnShared.style.color = 'var(--text)';
+    }
+    if (btnPersonal) {
+      btnPersonal.classList.remove('active');
+      btnPersonal.style.background = 'transparent';
+      btnPersonal.style.color = 'var(--text-muted)';
+    }
+    if (sharedInputGroup) sharedInputGroup.style.display = 'block';
+  }
+}
+
+async function saveSettings() {
+  const folderInput = document.getElementById('input-shared-folder-id');
+  const folderIdInput = folderInput ? folderInput.value.trim() : '';
+  
+  // Extract folder ID if they pasted a link
+  let extractedId = folderIdInput;
+  if (folderIdInput.includes('drive.google.com') && folderIdInput.includes('folders/')) {
+    const match = folderIdInput.match(/folders\/([a-zA-Z0-9-_]+)/);
+    if (match && match[1]) {
+      extractedId = match[1];
+    }
+  }
+  
+  state.sharedFolderId = extractedId;
+  localStorage.setItem('memoire_vault_mode', state.activeVaultMode);
+  localStorage.setItem('memoire_shared_folder_id', extractedId);
+  
+  // Reset Drive folder cache so it re-resolves using the new settings
+  state.folderId = null;
+  state.highlightsFolderId = null;
+  
+  closeSettings();
+  toast('Settings saved successfully ✓');
+  
+  // Reload memories to show new vault content
+  if (state.accessToken && state.accessToken !== 'demo') {
+    await loadMemories();
+  } else if (state.accessToken === 'demo') {
+    renderVault();
+  }
+}
+
+// ── VAULT FLASHBACKS & THROWBACKS ────────
+function renderFlashback() {
+  const container = document.getElementById('flashback-container');
+  if (!container) return;
+  container.innerHTML = '';
+  
+  if (state.memories.length === 0) return;
+  
+  // Sort memories newest first
+  const memories = [...state.memories].sort((a, b) => b.date - a.date);
+  
+  // Find a flashback matching our criteria
+  const today = new Date();
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  
+  let flashbackMemory = null;
+  let flashbackTag = 'Throwback';
+  let flashbackSub = 'Relive this moment from your vault.';
+  
+  for (const mem of memories) {
+    const memDate = new Date(mem.date);
+    const diffMs = Math.abs(today - memDate);
+    const diffDays = Math.round(diffMs / oneDayMs);
+    
+    // Check 1 year flashback (or exactly N years)
+    const sameMonth = today.getMonth() === memDate.getMonth();
+    const sameDay = today.getDate() === memDate.getDate();
+    const diffYears = today.getFullYear() - memDate.getFullYear();
+    
+    if (sameMonth && sameDay && diffYears > 0) {
+      flashbackMemory = mem;
+      flashbackTag = `${diffYears} Year Flashback`;
+      flashbackSub = `Exactly ${diffYears} year${diffYears > 1 ? 's' : ''} ago today: reliving this highlight!`;
+      break;
+    }
+    
+    // Check 30 days flashback
+    if (diffDays === 30) {
+      flashbackMemory = mem;
+      flashbackTag = '1 Month Flashback';
+      flashbackSub = 'Relive this highlight from exactly one month ago today.';
+      break;
+    }
+    
+    // Check 7 days flashback
+    if (diffDays === 7) {
+      flashbackMemory = mem;
+      flashbackTag = 'Weekly Flashback';
+      flashbackSub = 'Relive your highlight from exactly one week ago today.';
+      break;
+    }
+  }
+  
+  // If no specific anniversary matches, pick a random memory older than 3 days as a throwback
+  if (!flashbackMemory) {
+    const olderMemories = memories.filter(mem => {
+      const diffMs = Math.abs(today - new Date(mem.date));
+      return Math.round(diffMs / oneDayMs) >= 3;
+    });
+    
+    if (olderMemories.length > 0) {
+      flashbackMemory = olderMemories[Math.floor(Math.random() * olderMemories.length)];
+      flashbackTag = 'Throwback';
+      const ageInDays = Math.round(Math.abs(today - new Date(flashbackMemory.date)) / oneDayMs);
+      flashbackSub = `Reliving a highlight from ${ageInDays} days ago in your vault.`;
+    }
+  }
+  
+  if (!flashbackMemory) return; // No memories old enough yet
+  
+  const dateLabel = flashbackMemory.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  
+  const card = document.createElement('div');
+  card.className = 'flashback-card';
+  card.innerHTML = `
+    <div class="flashback-body">
+      <span class="flashback-tag">${flashbackTag}</span>
+      <h3 class="flashback-title">${dateLabel}</h3>
+      <p class="flashback-sub">${flashbackSub}</p>
+    </div>
+    <div class="flashback-actions">
+      <button class="btn-flashback-play" title="Play Flashback" aria-label="Play Flashback">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor" style="margin-left:2px;"><path d="M4 2.5l11 6.5-11 6.5V2.5z"/></svg>
+      </button>
+    </div>
+  `;
+  
+  card.querySelector('.btn-flashback-play').addEventListener('click', () => {
+    if (flashbackMemory.url) {
+      openPlayback(flashbackMemory.url, dateLabel, formatSize(flashbackMemory.size), flashbackMemory.filter);
+    } else if (flashbackMemory.driveId && state.accessToken !== 'demo') {
+      fetchAndPlayDrive(flashbackMemory);
+    } else {
+      toast('Preview not available');
+    }
+  });
+  
+  container.appendChild(card);
+}
