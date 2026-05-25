@@ -431,6 +431,8 @@ html, body {
 
 .camera-wrap {
   width: 100%;
+  max-height: calc(100vh - 350px);
+  min-height: 240px;
   aspect-ratio: 16/9;
   background: var(--surface);
   border-radius: var(--radius);
@@ -438,6 +440,7 @@ html, body {
   position: relative;
   overflow: hidden;
   touch-action: none; /* Allow pinch-to-zoom gesture handling */
+  margin: 0 auto;
 }
 
 #video-preview {
@@ -1205,6 +1208,15 @@ html, body {
     -webkit-overflow-scrolling: touch;
   }
 
+  /* Specific record tab styling to avoid scrollbar on mobile */
+  #tab-record {
+    padding: 0 !important;
+    overflow: hidden !important;
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
   /* Camera preview portrait optimization */
   .record-layout { 
     grid-template-columns: 1fr; 
@@ -1222,16 +1234,19 @@ html, body {
     flex-direction: column;
     width: 100%;
     height: 100%;
+    padding: 12px;
+    box-sizing: border-box;
   }
   
   .camera-wrap {
-    aspect-ratio: auto;
     flex: 1;
     width: 100%;
-    border-radius: 20px;
+    height: 100%;
+    border-radius: 24px;
     border: none;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
     overflow: hidden;
+    position: relative;
   }
   
   .record-sidebar-info { 
