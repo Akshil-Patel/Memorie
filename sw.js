@@ -1,10 +1,11 @@
-const CACHE_NAME = 'memoire-cache-v1';
+const CACHE_NAME = 'memoire-cache-v2';
 const ASSETS = [
   './',
   './index.html',
   './style.css',
   './app.js',
-  './manifest.json'
+  './manifest.json',
+  'https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap'
 ];
 
 // Install Event - Pre-Cache Static Assets

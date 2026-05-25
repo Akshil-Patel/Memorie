@@ -31,6 +31,10 @@ html, body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
 }
 
 /* ── SCREENS ── */
@@ -433,6 +437,7 @@ html, body {
   border: 1px solid var(--border);
   position: relative;
   overflow: hidden;
+  touch-action: none; /* Allow pinch-to-zoom gesture handling */
 }
 
 #video-preview {
@@ -540,6 +545,7 @@ html, body {
   flex-direction: column;
   align-items: center;
   gap: 14px;
+  position: relative;
 }
 
 .record-ring {
@@ -587,6 +593,53 @@ html, body {
   color: var(--text-muted);
   transition: color var(--transition);
 }
+
+/* ── ZOOM INDICATOR ── */
+.zoom-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: all 0.3s cubic-bezier(0.22,1,0.36,1);
+  pointer-events: none;
+  position: absolute;
+  right: -50px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.zoom-indicator.visible {
+  opacity: 1;
+}
+.zoom-bar {
+  width: 4px;
+  height: 80px;
+  background: var(--surface3);
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.zoom-bar-fill {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 0%;
+  background: linear-gradient(to top, var(--accent-warm), #e8c878);
+  border-radius: 4px;
+  transition: height 0.15s ease-out;
+  box-shadow: 0 0 8px rgba(200,169,110,0.4);
+}
+.zoom-level {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent-warm);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
+
 
 /* ── RECORD SIDEBAR ── */
 .record-sidebar-info {
@@ -1135,52 +1188,78 @@ html, body {
   .topbar {
     justify-content: space-between;
     padding: 0 16px;
-    height: 56px;
+    padding-top: env(safe-area-inset-top, 0px);
+    height: calc(56px + env(safe-area-inset-top, 0px));
     background: var(--surface);
     position: relative;
     z-index: 101;
   }
 
   .main-content {
-    height: calc(100vh - 56px - 64px); /* Space for topbar and bottom nav */
+    height: calc(100vh - 56px - 68px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
     padding-bottom: 0;
   }
 
   .tab-content {
-    padding: 20px 16px 80px; /* Extra padding at bottom for nav clearance */
+    padding: 16px 14px 90px; /* Extra padding at bottom for nav clearance */
+    -webkit-overflow-scrolling: touch;
   }
 
   /* Camera preview portrait optimization */
   .record-layout { 
     grid-template-columns: 1fr; 
     height: auto; 
-    padding-bottom: 24px;
-    gap: 16px;
+    padding-bottom: 16px;
+    gap: 12px;
   }
   
   .camera-wrap {
     aspect-ratio: 3/4; /* Natural portrait camera feel */
     border-radius: 20px;
+    border: none;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
   }
   
   .camera-section {
-    gap: 20px;
+    gap: 16px;
   }
   
   .record-sidebar-info { 
     flex-direction: row; 
     flex-wrap: wrap; 
-    gap: 10px;
+    gap: 8px;
   }
   
   .info-card { 
     flex: 1; 
-    min-width: 120px; 
+    min-width: 100px; 
     padding: 10px 14px;
+  }
+  .info-card-value {
+    font-size: 22px;
   }
   
   .quick-tips { 
     display: none; 
+  }
+
+  /* Larger record button on mobile */
+  .record-ring {
+    width: 78px;
+    height: 78px;
+  }
+  .record-btn {
+    width: 58px;
+    height: 58px;
+  }
+  .record-ring.recording .record-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  /* Zoom indicator positioning for mobile */
+  .zoom-indicator {
+    right: -44px;
   }
 
   /* Bottom Navigation Styles */
@@ -1190,28 +1269,30 @@ html, body {
     bottom: 0;
     left: 0;
     right: 0;
-    height: 64px;
-    background: rgba(17, 17, 17, 0.85);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    height: calc(68px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: rgba(17, 17, 17, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     border-top: 1px solid var(--border);
     justify-content: space-around;
     align-items: center;
     z-index: 999;
-    padding: 0 8px;
-    box-shadow: 0 -8px 24px rgba(0,0,0,0.3);
+    padding-left: env(safe-area-inset-left, 8px);
+    padding-right: env(safe-area-inset-right, 8px);
+    box-shadow: 0 -8px 32px rgba(0,0,0,0.4);
   }
 
   .mobile-nav-item {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
+    gap: 3px;
     border: none;
     background: transparent;
     color: var(--text-muted);
     font-family: 'DM Sans', sans-serif;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 500;
     cursor: pointer;
     padding: 8px 16px;
@@ -1223,7 +1304,8 @@ html, body {
   }
 
   .mobile-nav-item:active {
-    transform: scale(0.92); /* Subtle haptic feedback */
+    transform: scale(0.9);
+    background: rgba(255,255,255,0.04);
   }
 
   .mobile-nav-item.active {
@@ -1234,12 +1316,13 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 22px;
+    height: 24px;
+    width: 24px;
     transition: transform var(--transition);
   }
 
   .mobile-nav-item.active .mobile-nav-icon {
-    transform: translateY(-2px);
+    transform: translateY(-2px) scale(1.1);
   }
 
   .mobile-clip-badge {
@@ -1255,6 +1338,48 @@ html, body {
     min-width: 15px;
     text-align: center;
     box-shadow: 0 2px 6px rgba(200,169,110,0.4);
+  }
+
+  /* Better clip & vault grids on mobile */
+  .clips-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+  }
+  .vault-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+  }
+  .clip-body {
+    padding: 10px 12px;
+  }
+  .clip-name {
+    font-size: 12px;
+  }
+  .clip-time {
+    font-size: 10px;
+  }
+  .vault-body {
+    padding: 10px 12px;
+  }
+  .vault-date {
+    font-size: 13px;
+  }
+  .vault-label {
+    font-size: 11px;
+  }
+  .vault-size {
+    font-size: 10px;
+    margin-top: 4px;
+  }
+
+  /* Tab headings on mobile */
+  .tab-heading {
+    font-size: 20px;
+  }
+  .tab-header-row {
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
   }
 
   /* Modals on mobile adjustments */
@@ -1276,6 +1401,36 @@ html, body {
   .modal-overlay {
     align-items: flex-end;
     padding: 0;
+  }
+
+  .modal-header {
+    padding: 18px 18px 14px;
+  }
+  .modal-title {
+    font-size: 17px;
+  }
+  .modal-footer {
+    padding: 14px 18px;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Toast positioned above bottom nav */
+  .toast-wrap {
+    bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Filter selector horizontal scroll */
+  .filter-selector {
+    justify-content: flex-start;
+    padding: 2px 4px 8px;
+    gap: 10px;
+  }
+  .filter-preview {
+    width: 42px;
+    height: 42px;
+  }
+  .filter-label {
+    font-size: 10px;
   }
 }
 
@@ -1520,7 +1675,27 @@ html, body {
   .flashback-title {
     font-size: 16px;
   }
-  .filter-selector {
-    justify-content: flex-start;
+}
+
+/* ── SMALL SCREENS (very small phones) ── */
+@media (max-width: 380px) {
+  .camera-wrap {
+    aspect-ratio: 9/14;
+  }
+  .record-ring {
+    width: 70px;
+    height: 70px;
+  }
+  .record-btn {
+    width: 52px;
+    height: 52px;
+  }
+  .clips-grid, .vault-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .filter-preview {
+    width: 38px;
+    height: 38px;
   }
 }

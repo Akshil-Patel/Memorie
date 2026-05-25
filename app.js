@@ -8,6 +8,15 @@ const CONFIG = {
   HIGHLIGHTS_FOLDER: 'Highlights',
 };
 
+// ── FILTER MAP (canvas ctx.filter equivalents) ──
+const FILTER_MAP = {
+  none: 'none',
+  retro: 'sepia(0.55) contrast(1.15) brightness(0.95) saturate(1.1)',
+  noir: 'grayscale(1) contrast(1.3) brightness(0.9)',
+  vivid: 'saturate(1.5) contrast(1.1)',
+  cyberpunk: 'hue-rotate(140deg) saturate(1.35) contrast(1.1)',
+};
+
 // ── STATE ──────────────────────────────
 const state = {
   user: null,
@@ -31,6 +40,21 @@ const state = {
   streakCount: 0,
   sharedFolderId: '',
   activeVaultMode: 'personal',
+  // Zoom state
+  zoomLevel: 1,
+  minZoom: 1,
+  maxZoom: 5,
+  supportsHardwareZoom: false,
+  // Canvas recording
+  canvasLoopId: null,
+  canvasCtx: null,
+  // Pinch zoom tracking
+  pinchStartDist: 0,
+  pinchStartZoom: 1,
+  // Drag zoom tracking
+  dragZoomStartY: 0,
+  dragZoomStartZoom: 1,
+  isDragZooming: false,
 };
 
 // ── INDEXEDDB LOCAL STORAGE WRAPPER ────
@@ -321,6 +345,13 @@ async function enterApp() {
   } else {
     await loadDemoMemories();
   }
+
+  // Handle PWA shortcut URL params (e.g., ?tab=vault)
+  const urlParams = new URLSearchParams(window.location.search);
+  const tabParam = urlParams.get('tab');
+  if (tabParam && ['record', 'today', 'vault'].includes(tabParam)) {
+    switchTab(tabParam);
+  }
 }
 
 function populateUser() {
@@ -388,10 +419,19 @@ async function initCamera() {
   // Apply current filter to camera preview
   applyFilterToPreview();
 
+  // Detect hardware zoom support
+  detectZoomCapabilities();
+  // Reset zoom level on camera init
+  state.zoomLevel = 1;
+  updateZoomIndicator();
+
   if (idle.querySelector('p')) {
     idle.querySelector('p').textContent = 'Camera ready';
   }
   idle.style.opacity = '0';
+
+  // Setup zoom gesture listeners (once)
+  setupZoomGestures();
 }
 
 function setFilter(filterName) {
@@ -416,6 +456,175 @@ function applyFilterToPreview() {
   }
 }
 
+// ── ZOOM ───────────────────────────────
+function detectZoomCapabilities() {
+  if (!state.stream) return;
+  const videoTrack = state.stream.getVideoTracks()[0];
+  if (!videoTrack) return;
+
+  try {
+    const capabilities = videoTrack.getCapabilities();
+    if (capabilities.zoom) {
+      state.supportsHardwareZoom = true;
+      state.minZoom = capabilities.zoom.min || 1;
+      state.maxZoom = Math.min(capabilities.zoom.max || 5, 10);
+    } else {
+      state.supportsHardwareZoom = false;
+      state.minZoom = 1;
+      state.maxZoom = 4; // Digital zoom max
+    }
+  } catch (e) {
+    state.supportsHardwareZoom = false;
+    state.minZoom = 1;
+    state.maxZoom = 4;
+  }
+}
+
+function applyZoom(level) {
+  state.zoomLevel = Math.max(state.minZoom, Math.min(state.maxZoom, level));
+
+  if (state.supportsHardwareZoom && state.stream) {
+    const videoTrack = state.stream.getVideoTracks()[0];
+    if (videoTrack) {
+      try {
+        videoTrack.applyConstraints({ advanced: [{ zoom: state.zoomLevel }] });
+      } catch (e) {
+        console.warn('Hardware zoom failed:', e);
+      }
+    }
+  }
+  // For digital zoom fallback, the canvas loop handles it via drawImage crop
+  updateZoomIndicator();
+}
+
+function updateZoomIndicator() {
+  const indicator = document.getElementById('zoom-indicator');
+  const levelEl = document.getElementById('zoom-level');
+  const barFill = document.getElementById('zoom-bar-fill');
+  if (!indicator || !levelEl || !barFill) return;
+
+  if (state.zoomLevel > 1.05) {
+    indicator.classList.add('visible');
+    levelEl.textContent = `${state.zoomLevel.toFixed(1)}×`;
+    const pct = ((state.zoomLevel - state.minZoom) / (state.maxZoom - state.minZoom)) * 100;
+    barFill.style.height = `${pct}%`;
+  } else {
+    indicator.classList.remove('visible');
+  }
+}
+
+let _zoomGesturesSetup = false;
+function setupZoomGestures() {
+  if (_zoomGesturesSetup) return;
+  _zoomGesturesSetup = true;
+
+  const cameraWrap = document.getElementById('camera-wrap');
+  const recordRing = document.getElementById('record-ring');
+
+  // ── Pinch-to-Zoom on camera preview ──
+  cameraWrap.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      state.pinchStartDist = getPinchDistance(e.touches);
+      state.pinchStartZoom = state.zoomLevel;
+    }
+  }, { passive: false });
+
+  cameraWrap.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const dist = getPinchDistance(e.touches);
+      const scale = dist / state.pinchStartDist;
+      applyZoom(state.pinchStartZoom * scale);
+    }
+  }, { passive: false });
+
+  // ── Drag-to-Zoom on record button ──
+  recordRing.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) {
+      state.dragZoomStartY = e.touches[0].clientY;
+      state.dragZoomStartZoom = state.zoomLevel;
+      state.isDragZooming = false;
+    }
+  }, { passive: true });
+
+  recordRing.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 1) {
+      const deltaY = state.dragZoomStartY - e.touches[0].clientY; // Positive = dragged up
+      if (Math.abs(deltaY) > 10) {
+        state.isDragZooming = true;
+        // 200px drag = full zoom range
+        const zoomDelta = (deltaY / 200) * (state.maxZoom - state.minZoom);
+        applyZoom(state.dragZoomStartZoom + zoomDelta);
+        e.preventDefault();
+      }
+    }
+  }, { passive: false });
+
+  recordRing.addEventListener('touchend', (e) => {
+    if (state.isDragZooming) {
+      state.isDragZooming = false;
+      // Don't trigger record toggle when drag-zooming
+    }
+  }, { passive: true });
+}
+
+function getPinchDistance(touches) {
+  const dx = touches[0].clientX - touches[1].clientX;
+  const dy = touches[0].clientY - touches[1].clientY;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+// ── CANVAS RECORDING PIPELINE ──────────
+function startCanvasLoop() {
+  const vid = document.getElementById('video-preview');
+  const canvas = document.getElementById('video-canvas');
+  if (!vid || !canvas) return;
+
+  // Match canvas to video dimensions
+  const track = state.stream.getVideoTracks()[0];
+  const settings = track.getSettings();
+  canvas.width = settings.width || 640;
+  canvas.height = settings.height || 480;
+
+  const ctx = canvas.getContext('2d');
+  state.canvasCtx = ctx;
+
+  function drawFrame() {
+    if (!state.isRecording) return;
+
+    // Apply filter
+    const filterStr = FILTER_MAP[state.selectedFilter] || 'none';
+    ctx.filter = filterStr;
+
+    // Handle zoom (digital zoom if not using hardware zoom, or always for visual consistency)
+    const zoom = state.zoomLevel;
+    const sw = canvas.width / zoom;
+    const sh = canvas.height / zoom;
+    const sx = (canvas.width - sw) / 2;
+    const sy = (canvas.height - sh) / 2;
+
+    if (!state.supportsHardwareZoom && zoom > 1.01) {
+      // Digital zoom: draw cropped region at full canvas size
+      ctx.drawImage(vid, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+    } else {
+      ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
+    }
+
+    state.canvasLoopId = requestAnimationFrame(drawFrame);
+  }
+
+  state.canvasLoopId = requestAnimationFrame(drawFrame);
+}
+
+function stopCanvasLoop() {
+  if (state.canvasLoopId) {
+    cancelAnimationFrame(state.canvasLoopId);
+    state.canvasLoopId = null;
+  }
+  state.canvasCtx = null;
+}
+
 async function flipCamera() {
   if (state.isRecording) return; // Prevent flipping camera during capture
   state.facingMode = state.facingMode === 'user' ? 'environment' : 'user';
@@ -434,6 +643,9 @@ function stopStream() {
 
 // ── RECORDING ──────────────────────────
 function toggleRecord() {
+  // Don't trigger recording if user was drag-zooming
+  if (state.isDragZooming) return;
+
   const now = Date.now();
   if (now - state.lastRecordToggleTime < 500) return; // Debounce rapid clicking
   state.lastRecordToggleTime = now;
@@ -444,14 +656,29 @@ function toggleRecord() {
 function startRecord() {
   if (!state.stream) { toast('Camera not ready'); return; }
 
+  state.isRecording = true; // Set early so canvas loop runs
   state.recordChunks = [];
+
+  // Start canvas rendering loop for filter baking
+  startCanvasLoop();
+
+  // Build the recording stream: canvas video + original audio
+  const canvas = document.getElementById('video-canvas');
+  const canvasStream = canvas.captureStream(30); // 30 fps
+
+  // Mix in audio tracks from the camera stream
+  const audioTracks = state.stream.getAudioTracks();
+  const mixedStream = new MediaStream();
+  canvasStream.getVideoTracks().forEach(t => mixedStream.addTrack(t));
+  audioTracks.forEach(t => mixedStream.addTrack(t));
+
   const mimeOptions = getSupportedMimeType();
   const options = {
     ...mimeOptions,
     videoBitsPerSecond: 1200000, // 1.2 Mbps (super compressed yet crisp for mobile/web screens)
     audioBitsPerSecond: 64000    // 64 Kbps mono audio
   };
-  state.mediaRecorder = new MediaRecorder(state.stream, options);
+  state.mediaRecorder = new MediaRecorder(mixedStream, options);
 
   state.mediaRecorder.ondataavailable = e => {
     if (e.data && e.data.size > 0) state.recordChunks.push(e.data);
@@ -460,7 +687,6 @@ function startRecord() {
   state.mediaRecorder.onstop = () => finalizeClip();
   state.mediaRecorder.start(100);
 
-  state.isRecording = true;
   state.recordStartTime = Date.now();
   state.recSecs = 0;
 
@@ -482,6 +708,9 @@ function stopRecord() {
   state.mediaRecorder.stop();
   state.isRecording = false;
   clearInterval(state.recInterval);
+
+  // Stop the canvas rendering loop
+  stopCanvasLoop();
 
   // UI Updates
   document.getElementById('record-ring').classList.remove('recording');

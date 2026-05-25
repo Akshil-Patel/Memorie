@@ -2,13 +2,16 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mémoire</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Mémoire — One Moment, Every Day</title>
+<meta name="description" content="Record daily video clips, pick your highlight, and save it forever to Google Drive. A beautiful daily journal for your life's moments.">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22 font-family=%22serif%22 font-style=%22italic%22>m</text></svg>">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%23c8a96e%22/><text x=%2250%22 y=%2265%22 font-family=%22serif%22 font-size=%2260%22 font-style=%22italic%22 font-weight=%22bold%22 fill=%22%231a1208%22 text-anchor=%22middle%22>m</text></svg>">
 <meta name="theme-color" content="#0a0a0a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mémoire">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
@@ -197,6 +200,13 @@
           </div>
 
           <div class="record-controls">
+            <!-- Zoom Indicator -->
+            <div class="zoom-indicator" id="zoom-indicator">
+              <div class="zoom-bar">
+                <div class="zoom-bar-fill" id="zoom-bar-fill"></div>
+              </div>
+              <span class="zoom-level" id="zoom-level">1.0×</span>
+            </div>
             <div class="record-ring" id="record-ring" onclick="toggleRecord()">
               <div class="record-btn" id="record-btn">
                 <div class="record-inner" id="record-inner"></div>
