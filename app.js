@@ -243,8 +243,8 @@ async function initGAPIClient() {
 }
 
 function checkExistingSession() {
-  const savedToken = sessionStorage.getItem('memoire_token');
-  const savedUser = sessionStorage.getItem('memoire_user');
+  const savedToken = localStorage.getItem('memoire_token');
+  const savedUser = localStorage.getItem('memoire_user');
   if (savedToken && savedUser) {
     state.accessToken = savedToken;
     state.user = JSON.parse(savedUser);
@@ -277,7 +277,7 @@ function signIn() {
         if (response.error) { toast('Sign in failed'); return; }
         state.accessToken = response.access_token;
         gapi.client.setToken({ access_token: response.access_token });
-        sessionStorage.setItem('memoire_token', response.access_token);
+        localStorage.setItem('memoire_token', response.access_token);
         await fetchUserInfo();
         enterApp();
       },
@@ -292,8 +292,8 @@ function signIn() {
 function enterDemoMode() {
   state.user = { name: 'Demo User', email: 'demo@memoire.app', picture: null };
   state.accessToken = 'demo';
-  sessionStorage.setItem('memoire_token', 'demo');
-  sessionStorage.setItem('memoire_user', JSON.stringify(state.user));
+  localStorage.setItem('memoire_token', 'demo');
+  localStorage.setItem('memoire_user', JSON.stringify(state.user));
   toast('Running in Demo Mode — Local persistence active!');
   enterApp();
 }
@@ -305,14 +305,15 @@ async function fetchUserInfo() {
     });
     const info = await res.json();
     state.user = { name: info.name, email: info.email, picture: info.picture };
-    sessionStorage.setItem('memoire_user', JSON.stringify(state.user));
+    localStorage.setItem('memoire_user', JSON.stringify(state.user));
   } catch (e) {
     state.user = { name: 'User', email: '', picture: null };
   }
 }
 
 function signOut() {
-  sessionStorage.clear();
+  localStorage.removeItem('memoire_token');
+  localStorage.removeItem('memoire_user');
   state.user = null;
   state.accessToken = null;
 
