@@ -8,6 +8,11 @@ const CONFIG = {
   HIGHLIGHTS_FOLDER: 'Highlights',
 };
 
+// ── NATIVE PLATFORM HELPER ───────────
+function isNativePlatform() {
+  return window.Capacitor && window.Capacitor.isNativePlatform();
+}
+
 // ── FILTER MAP (canvas ctx.filter equivalents) ──
 const FILTER_MAP = {
   none: 'none',
@@ -129,8 +134,8 @@ window.onload = async () => {
   state.activeVaultMode = localStorage.getItem('memoire_vault_mode') || 'personal';
   state.sharedFolderId = localStorage.getItem('memoire_shared_folder_id') || '';
 
-  // Register Service Worker for PWA offline caching
-  if ('serviceWorker' in navigator) {
+  // Register Service Worker for PWA offline caching (skip if native Android app)
+  if (!isNativePlatform() && 'serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js')
       .then(reg => console.log('[Service Worker] Registered with scope:', reg.scope))
       .catch(err => console.warn('[Service Worker] Registration failed:', err));
@@ -552,7 +557,13 @@ function setupZoomGestures() {
     if (e.touches.length === 1) {
       const deltaY = state.dragZoomStartY - e.touches[0].clientY; // Positive = dragged up
       if (Math.abs(deltaY) > 10) {
-        state.isDragZooming = true;
+        if (!state.isDragZooming) {
+          state.isDragZooming = true;
+          // Start recording simultaneously when drag zoom initiates
+          if (!state.isRecording) {
+            toggleRecord();
+          }
+        }
         // 200px drag = full zoom range
         const zoomDelta = (deltaY / 200) * (state.maxZoom - state.minZoom);
         applyZoom(state.dragZoomStartZoom + zoomDelta);
@@ -564,7 +575,8 @@ function setupZoomGestures() {
   recordRing.addEventListener('touchend', (e) => {
     if (state.isDragZooming) {
       state.isDragZooming = false;
-      // Don't trigger record toggle when drag-zooming
+      // We do not stop recording here so the user can release and the recording continues,
+      // matching the 'tap to stop' pattern of the app.
     }
   }, { passive: true });
 }

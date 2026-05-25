@@ -1,0 +1,27 @@
+{
+  "name": "memoire",
+  "version": "1.0.0",
+  "description": "A minimal memory clip app. Record throughout your day, pick one highlight, save it forever to Google Drive.",
+  "main": "app.js",
+  "scripts": {
+    "build": "powershell -Command \"Copy-Item index.html,app.js,style.css,manifest.json,sw.js -Destination www/ -Force\"",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Akshil-Patel/Memorie.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Akshil-Patel/Memorie/issues"
+  },
+  "homepage": "https://github.com/Akshil-Patel/Memorie#readme",
+  "dependencies": {
+    "@capacitor/android": "^8.3.4",
+    "@capacitor/cli": "^8.3.4",
+    "@capacitor/core": "^8.3.4"
+  }
+}

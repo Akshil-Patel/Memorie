@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Mémoire — One Moment, Every Day</title>
+<meta name="description" content="Record daily video clips, pick your highlight, and save it forever to Google Drive. A beautiful daily journal for your life's moments.">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22 font-family=%22serif%22 font-style=%22italic%22>m</text></svg>">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%23c8a96e%22/><text x=%2250%22 y=%2265%22 font-family=%22serif%22 font-size=%2260%22 font-style=%22italic%22 font-weight=%22bold%22 fill=%22%231a1208%22 text-anchor=%22middle%22>m</text></svg>">
+<meta name="theme-color" content="#0a0a0a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mémoire">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- SPLASH / AUTH SCREEN -->
+<div id="screen-auth" class="screen active">
+  <div class="auth-bg">
+    <div class="auth-orb orb1"></div>
+    <div class="auth-orb orb2"></div>
+    <div class="auth-orb orb3"></div>
+  </div>
+  <div class="auth-content">
+    <div class="brand reveal-up" style="--d:0ms">
+      <div class="brand-mark">m</div>
+      <span class="brand-name">Mémoire</span>
+    </div>
+    <h1 class="auth-headline reveal-up" style="--d:80ms">
+      One moment.<br><em>Every day.</em>
+    </h1>
+    <p class="auth-sub reveal-up" style="--d:160ms">Record clips throughout your day. Pick one highlight. Keep it forever in your Google Drive.</p>
+    <button class="btn-google reveal-up" style="--d:240ms" onclick="signIn()">
+      <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.964 10.707A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.961L3.964 6.293C4.672 4.166 6.656 3.58 9 3.58z"/></svg>
+      Continue with Google
+    </button>
+    <button class="btn-demo reveal-up" style="--d:280ms" onclick="enterDemoMode()" id="btn-demo">
+      Try Demo Mode (Local Storage)
+    </button>
+    <p class="auth-note reveal-up" style="--d:340ms">Your clips save directly to your Google Drive. We never store your videos.</p>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="screen-app" class="screen">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="brand-small">
+        <div class="brand-mark-sm">m</div>
+        <span>Mémoire</span>
+      </div>
+      <button class="icon-btn" onclick="toggleSidebar()" aria-label="Close menu" title="Close">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M12 4L4 12M4 4l8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <nav class="sidebar-nav">
+      <!-- Sidebar Streak Card -->
+      <div class="sidebar-streak-card" id="sidebar-streak-card" style="display:none">
+        <span class="streak-card-emoji">🔥</span>
+        <div class="streak-card-info">
+          <p class="streak-card-count" id="sidebar-streak-count">0 days</p>
+          <p class="streak-card-label">Daily Streak</p>
+        </div>
+      </div>
+      
+      <button class="nav-item active" data-tab="record" onclick="switchTab('record')">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3.5" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2 2"/></svg>
+        </span>
+        Record
+        <span class="clip-count-badge" id="nav-clip-count" style="display:none">0</span>
+      </button>
+      <button class="nav-item" data-tab="today" onclick="switchTab('today')">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="3.5" width="13" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M5 1.5v2M11 1.5v2M1.5 7h13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </span>
+        Today's clips
+      </button>
+      <button class="nav-item" data-tab="vault" onclick="switchTab('vault')">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 4.5C2 3.12 3.12 2 4.5 2h7C12.88 2 14 3.12 14 4.5v7c0 1.38-1.12 2.5-2.5 2.5h-7A2.5 2.5 0 0 1 2 11.5v-7z" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.5"/><path d="M8 4V2M8 14v-2M4 8H2M14 8h-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </span>
+        Memory vault
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-card" id="user-card">
+        <div class="user-avatar" id="user-avatar">?</div>
+        <div class="user-info">
+          <p class="user-name" id="user-name">Loading...</p>
+          <p class="user-email" id="user-email"></p>
+        </div>
+        <button class="icon-btn" onclick="signOut()" title="Sign out" aria-label="Sign out">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5 2H2.5A1.5 1.5 0 0 0 1 3.5v7A1.5 1.5 0 0 0 2.5 12H5M9 9.5l2.5-2.5L9 4.5M11.5 7H5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="main-content">
+
+    <!-- TOP BAR -->
+    <header class="topbar">
+      <button class="menu-btn" onclick="toggleSidebar()" aria-label="Menu">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M2.5 5h13M2.5 9h9M2.5 13h13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>
+      <div class="topbar-brand">
+        <div class="brand-mark-sm">m</div>
+        <span class="topbar-title" id="topbar-title">Record</span>
+      </div>
+      
+      <!-- Streak Badge -->
+      <div class="topbar-streak" id="topbar-streak" style="display:none" title="Daily highlight streak">
+        <span class="streak-emoji">🔥</span>
+        <span class="streak-count" id="streak-count">0</span>
+      </div>
+
+      <div class="topbar-date" id="topbar-date"></div>
+      
+      <!-- Settings Button -->
+      <button class="icon-btn" onclick="openSettings()" title="Vault Settings" aria-label="Settings" style="margin-left:8px;">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M8 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z" stroke="currentColor" stroke-width="1.5"/><path d="M14 8c0-.3-.23-.58-.52-.64l-1-.22a4.93 4.93 0 0 0-.58-1.42l.62-.84c.18-.24.12-.58-.13-.77l-1-1a.53.53 0 0 0-.77.13l-.84.62a4.93 4.93 0 0 0-1.42-.58l-.22-1c-.06-.29-.34-.52-.64-.52h-1.4c-.3 0-.58.23-.64.52l-.22 1a4.93 4.93 0 0 0-1.42.58l-.84-.62a.53.53 0 0 0-.77-.13l-1 1c-.19.2-.25.54-.13.77l.62.84a4.93 4.93 0 0 0-.58 1.42l-1 .22c-.29.06-.52.34-.52.64v1.4c0 .3.23.58.52.64l1 .22c.16.52.36 1 .58 1.42l-.62.84c-.18.24-.12.58.13.77l1 1c.2.2.53.2.77-.13l.84-.62c.42.22.9.42 1.42.58l.22 1c.06.29.34.52.64.52h1.4c.3 0 .58-.23.64-.52l.22-1c.52-.16 1-.36 1.42-.58l.84.62c.24.18.58.12.77-.13l1-1c.19-.2.25-.54.13-.77l-.62-.84c.22-.42.42-.9.58-1.42l1-.22c.29-.06.52-.34.52-.64V8z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+
+      <div class="topbar-avatar" id="topbar-avatar-btn" onclick="toggleUserDropdown(event)">
+        <div class="user-avatar-sm" id="user-avatar-top">?</div>
+      </div>
+      
+      <!-- Mobile User Dropdown -->
+      <div class="user-dropdown" id="user-dropdown">
+        <div class="user-dropdown-info">
+          <p class="user-name" id="dropdown-user-name">Loading...</p>
+          <p class="user-email" id="dropdown-user-email"></p>
+        </div>
+        <button class="dropdown-item" onclick="signOut()">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="margin-right:8px;"><path d="M5 2H2.5A1.5 1.5 0 0 0 1 3.5v7A1.5 1.5 0 0 0 2.5 12H5M9 9.5l2.5-2.5L9 4.5M11.5 7H5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Sign out
+        </button>
+      </div>
+    </header>
+
+    <!-- RECORD TAB -->
+    <div class="tab-content active" id="tab-record">
+      <div class="record-layout">
+
+        <div class="camera-section">
+          <div class="camera-wrap" id="camera-wrap">
+            <video id="video-preview" autoplay muted playsinline></video>
+            <canvas id="video-canvas" style="display:none"></canvas>
+
+            <div class="camera-idle" id="camera-idle">
+              <div class="idle-icon">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><path d="M4 10a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V10z" stroke="currentColor" stroke-width="1.5"/><path d="M22 13l6-4v14l-6-4v-6z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+              </div>
+              <p>Camera ready</p>
+            </div>
+
+            <div class="rec-badge" id="rec-badge">
+              <span class="rec-dot"></span> REC
+            </div>
+
+            <div class="camera-timer" id="camera-timer">00:00</div>
+
+            <div class="camera-controls" id="camera-controls">
+              <button class="ctrl-btn" id="btn-flip" onclick="flipCamera()" title="Flip camera" aria-label="Flip camera">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8c0-3.314 2.686-6 6-6s6 2.686 6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10 4l2-2-2-2M14 8c0 3.314-2.686 6-6 6S2 11.314 2 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M6 12l-2 2 2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Snapchat-like Filters Bar -->
+          <div class="filter-selector" id="filter-selector">
+            <button class="filter-card active" data-filter="none" onclick="setFilter('none')">
+              <div class="filter-preview filter-none-preview"></div>
+              <span class="filter-label">Normal</span>
+            </button>
+            <button class="filter-card" data-filter="retro" onclick="setFilter('retro')">
+              <div class="filter-preview filter-retro-preview"></div>
+              <span class="filter-label">Retro</span>
+            </button>
+            <button class="filter-card" data-filter="noir" onclick="setFilter('noir')">
+              <div class="filter-preview filter-noir-preview"></div>
+              <span class="filter-label">Noir</span>
+            </button>
+            <button class="filter-card" data-filter="vivid" onclick="setFilter('vivid')">
+              <div class="filter-preview filter-vivid-preview"></div>
+              <span class="filter-label">Vivid</span>
+            </button>
+            <button class="filter-card" data-filter="cyberpunk" onclick="setFilter('cyberpunk')">
+              <div class="filter-preview filter-cyber-preview"></div>
+              <span class="filter-label">Cyber</span>
+            </button>
+          </div>
+
+          <div class="record-controls">
+            <!-- Zoom Indicator -->
+            <div class="zoom-indicator" id="zoom-indicator">
+              <div class="zoom-bar">
+                <div class="zoom-bar-fill" id="zoom-bar-fill"></div>
+              </div>
+              <span class="zoom-level" id="zoom-level">1.0×</span>
+            </div>
+            <div class="record-ring" id="record-ring" onclick="toggleRecord()">
+              <div class="record-btn" id="record-btn">
+                <div class="record-inner" id="record-inner"></div>
+              </div>
+            </div>
+            <p class="record-label" id="record-label">Tap to record</p>
+          </div>
+        </div>
+
+        <div class="record-sidebar-info">
+          <div class="info-card">
+            <p class="info-card-label">Today's clips</p>
+            <p class="info-card-value" id="clip-count-display">0</p>
+          </div>
+          <div class="info-card">
+            <p class="info-card-label">Total duration</p>
+            <p class="info-card-value" id="total-duration-display">0s</p>
+          </div>
+          <div class="quick-tips">
+            <p class="tips-label">How it works</p>
+            <div class="tip-item"><span class="tip-num">1</span><span>Record clips throughout your day</span></div>
+            <div class="tip-item"><span class="tip-num">2</span><span>Go to "Today's clips" to review them</span></div>
+            <div class="tip-item"><span class="tip-num">3</span><span>Pick one as your daily highlight</span></div>
+            <div class="tip-item"><span class="tip-num">4</span><span>It saves to your Google Drive forever</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- TODAY'S CLIPS TAB -->
+    <div class="tab-content" id="tab-today">
+      <div class="tab-header-row">
+        <div>
+          <h2 class="tab-heading">Today's clips</h2>
+          <p class="tab-sub" id="today-sub">Review and pick your highlight</p>
+        </div>
+        <button class="btn-primary" id="btn-save-highlight" onclick="openHighlightPicker()" style="display:none">
+          Pick highlight →
+        </button>
+      </div>
+
+      <div class="clips-grid" id="clips-grid">
+        <div class="empty-state" id="clips-empty">
+          <div class="empty-icon">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect x="4" y="10" width="22" height="18" rx="3" stroke="currentColor" stroke-width="1.5"/><path d="M26 16l10-6v20l-10-6v-8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+          </div>
+          <p class="empty-title">No clips yet</p>
+          <p class="empty-body">Switch to Record and capture your first moment today.</p>
+          <button class="btn-ghost" onclick="switchTab('record')">Start recording →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- VAULT TAB -->
+    <div class="tab-content" id="tab-vault">
+      <div class="tab-header-row">
+        <div>
+          <h2 class="tab-heading">Memory vault</h2>
+          <p class="tab-sub">Your daily highlights, saved forever in Drive</p>
+        </div>
+        <div class="vault-stats">
+          <span id="vault-count">0 memories</span>
+        </div>
+      </div>
+
+      <!-- Flashback Banner / Throwback Card Container -->
+      <div id="flashback-container"></div>
+
+      <div class="vault-grid" id="vault-grid">
+        <div class="empty-state" id="vault-empty">
+          <div class="empty-icon">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><path d="M5 14.5C5 11.46 7.46 9 10.5 9h19C32.54 9 35 11.46 35 14.5v11c0 3.04-2.46 5.5-5.5 5.5h-19A5.5 5.5 0 0 1 5 25.5v-11z" stroke="currentColor" stroke-width="1.5"/><circle cx="20" cy="20" r="4" stroke="currentColor" stroke-width="1.5"/></svg>
+          </div>
+          <p class="empty-title">Vault is empty</p>
+          <p class="empty-body">Save your first daily highlight and it'll live here forever.</p>
+        </div>
+      </div>
+    </div>
+
+  </main>
+  
+  <!-- MOBILE BOTTOM NAVIGATION -->
+  <nav class="mobile-bottom-nav" id="mobile-bottom-nav">
+    <button class="mobile-nav-item active" data-tab="record" onclick="switchTab('record')">
+      <span class="mobile-nav-icon">
+        <svg width="20" height="20" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3.5" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2 2"/></svg>
+      </span>
+      <span class="mobile-nav-label">Record</span>
+    </button>
+    <button class="mobile-nav-item" data-tab="today" onclick="switchTab('today')">
+      <span class="mobile-nav-icon" style="position:relative">
+        <svg width="20" height="20" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="3.5" width="13" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M5 1.5v2M11 1.5v2M1.5 7h13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <span class="mobile-clip-badge" id="mobile-clip-count" style="display:none">0</span>
+      </span>
+      <span class="mobile-nav-label">Clips</span>
+    </button>
+    <button class="mobile-nav-item" data-tab="vault" onclick="switchTab('vault')">
+      <span class="mobile-nav-icon">
+        <svg width="20" height="20" viewBox="0 0 16 16" fill="none"><path d="M2 4.5C2 3.12 3.12 2 4.5 2h7C12.88 2 14 3.12 14 4.5v7c0 1.38-1.12 2.5-2.5 2.5h-7A2.5 2.5 0 0 1 2 11.5v-7z" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.5"/><path d="M8 4V2M8 14v-2M4 8H2M14 8h-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
+      <span class="mobile-nav-label">Vault</span>
+    </button>
+  </nav>
+</div>
+
+<!-- HIGHLIGHT PICKER MODAL -->
+<div class="modal-overlay" id="modal-highlight" onclick="closeModal(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title">Save clips to Drive</h3>
+        <p class="modal-sub">Selected clips will be uploaded to Google Drive. All others will be discarded.</p>
+      </div>
+      <button class="icon-btn" onclick="closeHighlightPicker()" aria-label="Close">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M12 4L4 12M4 4l8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="modal-clips" id="modal-clips-list"></div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeHighlightPicker()">Cancel</button>
+      <button class="btn-primary" id="btn-confirm-highlight" onclick="saveHighlight()" disabled>
+        Save to Drive
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- VIDEO PLAYBACK MODAL -->
+<div class="modal-overlay" id="modal-playback" onclick="closeModal(event)">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title" id="playback-title">Clip</h3>
+        <p class="modal-sub" id="playback-meta"></p>
+      </div>
+      <button class="icon-btn" onclick="closePlayback()" aria-label="Close">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M12 4L4 12M4 4l8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <video id="playback-video" controls style="width:100%;border-radius:12px;background:#000;max-height:60vh;"></video>
+  </div>
+</div>
+
+<!-- UPLOADING MODAL -->
+<div class="modal-overlay" id="modal-upload" style="pointer-events:none">
+  <div class="modal modal-sm">
+    <div class="upload-state">
+      <div class="upload-spinner"></div>
+      <p class="upload-title">Saving to Drive</p>
+      <p class="upload-sub" id="upload-sub">Uploading your highlight…</p>
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+      <p class="progress-pct" id="progress-pct">0%</p>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="modal-overlay" id="modal-settings" onclick="closeModal(event)">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title">Vault Settings</h3>
+        <p class="modal-sub">Collaborate with friends using a shared folder.</p>
+      </div>
+      <button class="icon-btn" onclick="closeSettings()" aria-label="Close">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M12 4L4 12M4 4l8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" style="padding:20px;display:flex;flex-direction:column;gap:16px;">
+      <div class="setting-group">
+        <label class="setting-label" style="display:block;font-size:10px;color:var(--text-hint);margin-bottom:6px;font-weight:600;letter-spacing:0.05em;">VAULT STORAGE MODE</label>
+        <div class="mode-toggle-group" style="display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:100px;padding:3px;">
+          <button class="mode-toggle-btn active" id="btn-vault-personal" onclick="setVaultMode('personal')" style="flex:1;border:none;background:var(--surface3);color:var(--text);font-family:inherit;font-size:12px;font-weight:500;padding:6px 12px;border-radius:100px;cursor:pointer;transition:all var(--transition);">Personal</button>
+          <button class="mode-toggle-btn" id="btn-vault-shared" onclick="setVaultMode('shared')" style="flex:1;border:none;background:transparent;color:var(--text-muted);font-family:inherit;font-size:12px;font-weight:500;padding:6px 12px;border-radius:100px;cursor:pointer;transition:all var(--transition);">Friends (Shared)</button>
+        </div>
+      </div>
+      <div class="setting-group" id="shared-folder-input-group" style="display:none;">
+        <label class="setting-label" style="display:block;font-size:10px;color:var(--text-hint);margin-bottom:6px;font-weight:600;letter-spacing:0.05em;">SHARED GOOGLE DRIVE FOLDER ID</label>
+        <input type="text" class="setting-input" id="input-shared-folder-id" placeholder="Paste Shared Folder ID or Link..." style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:inherit;font-size:13px;outline:none;transition:border-color var(--transition);">
+        <p class="setting-hint" style="font-size:11px;color:var(--text-hint);margin-top:6px;line-height:1.4;">Create a folder in Drive, share it with your friends as "Editor", copy the folder ID from the URL, and paste it here.</p>
+      </div>
+    </div>
+    <div class="modal-footer" style="padding:12px 20px;">
+      <button class="btn-ghost" onclick="closeSettings()">Cancel</button>
+      <button class="btn-primary" onclick="saveSettings()">Save Settings</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast-wrap" id="toast-wrap">
+  <div class="toast" id="toast"></div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
